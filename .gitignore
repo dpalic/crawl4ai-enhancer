@@ -1,0 +1,33 @@
+pocs/crawl_result_*.json
+pocs/*.har
+data/css_cache/
+*.log
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite
+*.db
+.env
+.env.*
+.venv/
+venv/
+.cache/
+.pytest_cache/
+coverage/
+htmlcov/
+dist/
+build/
+.vscode/
+.idea/
+data/*.db
+/data/*.db
+/data/*.sqlite
+
+# Coverage artifacts
+.coverage
+coverage_html/
+
+# some review code
+crawl4ai-0.7.8/
