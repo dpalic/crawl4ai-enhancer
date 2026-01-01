@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  app:
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-your-org}/${IMAGE_NAME:-crawl4ai-enhancer}:${IMAGE_TAG:-latest}
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - .env
+    volumes:
+      - app_data:/data
+    restart: unless-stopped
+
+volumes:
+  app_data:
