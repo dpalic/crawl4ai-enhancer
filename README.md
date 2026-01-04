@@ -10,21 +10,33 @@ Crawl4AI Enhancer is a microservice that sits in front of Crawl4AI as a proxy an
 ## Backward compatibility to Crawl4AI
 
 You can use all your previous code used with Crawl4AI, as Crawl4AI Enhancer is a man in the middle between your client and the Crawl4AI. So the only change is, that you change the URL of your Crawl4AI URL to the Crawl4AI Enhancer URL and your previous code is working as before.
-If you want to use 
+If you want to use it consider this architecture.
+
+```
+  +---------+           HTTP (to 8000)           +-------------------+     HTTP (to 11235)       +-------------+
+  | Client  | ---------------------------------> | Crawl4AI Enhancer | ------------------------> |  Crawl4AI   |
+  |         | <--------------------------------- |      (proxy)      | <------------------------ |  Upstream   |
+  +---------+       returns enriched JSON        |  - hooks: enrich  |      results JSON         |             |                  
+                                                 |  - enhanced_media |                           +-------------+
+                                                 |  - CSS fetch/parse|
+                                                 +-------------------+
+```
+
+  Task polling (ports shown):
+
+```
+  +---------+   GET /task/{id} (to 8000)    +-------------------+   GET /task/{id} (to 11235)   +-------------+
+  | Client  | ----------------------------> | Crawl4AI Enhancer | ----------------------------> |  Crawl4AI   |
+  |         | <---------------------------- |  (proxy)          | <---------------------------- |  Upstream   |
+  +---------+      results passthru         +-------------------+       results JSON            +-------------+
+```
+
 
 # How to run Crawl4AI Enhancer?
 
-## Layout
-- app/: application code (api routes, config, db helpers)
-- data/: persisted volume mounted at /data in the container
-- tests/: basic health check
-- Dockerfile, docker-compose.yml (pull from GHCR), docker-compose.build.yml (local build override): containerization assets
-- requirements*.txt, .env.example: dependencies and config defaults
-- .env_publish (optional): defaults for publishing to GHCR (owner, image name, token)
-- scripts/build-push-ghcr.sh: helper to build/push the image to GHCR
-
 ## Quickstart (Docker)
-- Copy .env.example to .env and adjust values (set IMAGE_OWNER/IMAGE_NAME/IMAGE_TAG if pulling from your GHCR).
+- Copy `.env.example` to `.env`
+- edit `.env` and adjust values (set IMAGE_OWNER/IMAGE_NAME/IMAGE_TAG if pulling from your GHCR).
 - Pull and run (default): `docker compose up -d` — pulls `ghcr.io/${IMAGE_OWNER}/${IMAGE_NAME}:${IMAGE_TAG}`.
 - Local build instead: `docker compose -f docker-compose.yml -f docker-compose.build.yml up --build`.
 - API: http://localhost:8000/docs
@@ -122,6 +134,15 @@ curl -X POST http://localhost:8000/crawl \
     }
   }'
 ```
+
+## Layout
+- app/: application code (api routes, config, db helpers)
+- data/: persisted volume mounted at /data in the container
+- tests/: basic health check
+- Dockerfile, docker-compose.yml (pull from GHCR), docker-compose.build.yml (local build override): containerization assets
+- requirements*.txt: dependencies
+- .env.example: dependencies and config defaults
+- scripts/build-push-ghcr.sh: helper to build/push the image to GHCR
 
 ## Notes
 - SQLite lives at /data/app.db by default. The data directory is a Docker volume so the DB survives rebuilds.
