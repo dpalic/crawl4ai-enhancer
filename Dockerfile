@@ -13,7 +13,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip     && pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-COPY .env.example ./.env.example
+COPY env.example ./.env
 COPY data/.gitkeep ./data/.gitkeep
 
 VOLUME ["/data"]

@@ -34,15 +34,6 @@ If you want to use it consider this architecture.
 
 # How to run Crawl4AI Enhancer?
 
-## Layout
-- app/: application code (api routes, config, db helpers)
-- data/: persisted volume mounted at /data in the container
-- tests/: basic health check
-- Dockerfile, docker-compose.yml (pull from GHCR), docker-compose.build.yml (local build override): containerization assets
-- requirements*.txt, .env.example: dependencies and config defaults
-- .env_publish (optional): defaults for publishing to GHCR (owner, image name, token)
-- scripts/build-push-ghcr.sh: helper to build/push the image to GHCR
-
 ## Quickstart (Docker)
 - Copy `.env.example` to `.env`
 - edit `.env` and adjust values (set IMAGE_OWNER/IMAGE_NAME/IMAGE_TAG if pulling from your GHCR).
@@ -143,6 +134,15 @@ curl -X POST http://localhost:8000/crawl \
     }
   }'
 ```
+
+## Layout
+- app/: application code (api routes, config, db helpers)
+- data/: persisted volume mounted at /data in the container
+- tests/: basic health check
+- Dockerfile, docker-compose.yml (pull from GHCR), docker-compose.build.yml (local build override): containerization assets
+- requirements*.txt: dependencies
+- .env.example: dependencies and config defaults
+- scripts/build-push-ghcr.sh: helper to build/push the image to GHCR
 
 ## Notes
 - SQLite lives at /data/app.db by default. The data directory is a Docker volume so the DB survives rebuilds.
