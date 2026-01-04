@@ -13,7 +13,7 @@ You can use all your previous code used with Crawl4AI, as Crawl4AI Enhancer is a
 If you want to use it consider this architecture.
 
 ```
-  +---------+           HTTP (to 8000)           +-------------------+     HTTP (to 11235)       +-------------+
+  +---------+           HTTP (to 11234)          +-------------------+     HTTP (to 11235)       +-------------+
   | Client  | ---------------------------------> | Crawl4AI Enhancer | ------------------------> |  Crawl4AI   |
   |         | <--------------------------------- |      (proxy)      | <------------------------ |  Upstream   |
   +---------+       returns enriched JSON        |  - hooks: enrich  |      results JSON         |             |                  
@@ -25,7 +25,7 @@ If you want to use it consider this architecture.
   Task polling (ports shown):
 
 ```
-  +---------+   GET /task/{id} (to 8000)    +-------------------+   GET /task/{id} (to 11235)   +-------------+
+  +---------+   GET /task/{id} (to 11234)   +-------------------+   GET /task/{id} (to 11235)   +-------------+
   | Client  | ----------------------------> | Crawl4AI Enhancer | ----------------------------> |  Crawl4AI   |
   |         | <---------------------------- |  (proxy)          | <---------------------------- |  Upstream   |
   +---------+      results passthru         +-------------------+       results JSON            +-------------+
@@ -39,7 +39,7 @@ If you want to use it consider this architecture.
 - edit `.env` and adjust values (set IMAGE_OWNER/IMAGE_NAME/IMAGE_TAG if pulling from your GHCR).
 - Pull and run (default): `docker compose up -d` — pulls `ghcr.io/${IMAGE_OWNER}/${IMAGE_NAME}:${IMAGE_TAG}`.
 - Local build instead: `docker compose -f docker-compose.yml -f docker-compose.build.yml up --build`.
-- API: http://localhost:8000/docs
+- API: http://localhost:11234/docs
 
 ## Local development _without_ Docker
 - `python -m venv .venv && source .venv/bin/activate`
@@ -108,7 +108,7 @@ When calling `/crawl`, you can include an optional `crawl4ai_enhancer_options` b
 
 Example curl:
 ```bash
-curl -X POST http://localhost:8000/crawl \
+curl -X POST http://localhost:11234/crawl \
   -H "Content-Type: application/json" \
   -d '{
     "urls": ["https://example.com"],
