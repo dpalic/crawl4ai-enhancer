@@ -6,6 +6,7 @@ Crawl4AI Enhancer is a microservice that sits in front of Crawl4AI as a proxy an
 - Media extraction: pulls media URLs and content for images (.png/.jpg/.jpeg/.gif/.webp), video (.mp4/.webm), and audio (.mp3/.wav).
 - PDF extraction: captures PDF URLs and content (.pdf) when present.
 - Network traces: records network requests/responses so you can debug missing assets or blocked resources.
+- Multi-upstream spray/balancer (roadmap): point the enhancer at multiple Crawl4AI endpoints to spread load, use different IPs, or steer traffic by region (configure via `UPSTREAMS_FILE` pointing to `upstreams.yaml`; example provided).
 
 ## Backward compatibility to Crawl4AI
 
@@ -13,30 +14,30 @@ You can use all your previous code used with Crawl4AI, as Crawl4AI Enhancer is a
 If you want to use it consider this architecture.
 
 ```
-  +---------+           HTTP (to 11234)          +-------------------+     HTTP (to 11235)       +-------------+
-  | Client  | ---------------------------------> | Crawl4AI Enhancer | ------------------------> |  Crawl4AI   |
-  |         | <--------------------------------- |      (proxy)      | <------------------------ |  Upstream   |
-  +---------+       returns enriched JSON        |  - hooks: enrich  |      results JSON         |             |                  
-                                                 |  - enhanced_media |                           +-------------+
-                                                 |  - CSS fetch/parse|
-                                                 +-------------------+
++--------+      HTTP (to 11234)       +-------------------+   HTTP (to 11235)    +------------+
+|  Your  | -------------------------> | Crawl4AI Enhancer | -------------------> | Crawl4AI   |
+| Client | <------------------------- | (proxy & sprayer) | <------------------- | (upstream) |
++--------+   returns enriched JSON    |                   |    results JSON      +------------+
+                                      +-------------------+
+                                       
 ```
 
   Task polling (ports shown):
 
 ```
-  +---------+   GET /task/{id} (to 11234)   +-------------------+   GET /task/{id} (to 11235)   +-------------+
-  | Client  | ----------------------------> | Crawl4AI Enhancer | ----------------------------> |  Crawl4AI   |
-  |         | <---------------------------- |  (proxy)          | <---------------------------- |  Upstream   |
-  +---------+      results passthru         +-------------------+       results JSON            +-------------+
++--------+   GET /task/{id}     +-------------------+  GET /task/{id}   +------------+
+|  Your  | -------------------> | Crawl4AI Enhancer | ----------------> | Crawl4AI   |
+| Client | <------------------- | (proxy & sprayer) | <---------------- | (upstream) |
++--------+   results passthru   +-------------------+    results JSON   +------------+
 ```
 
 
 # How to run Crawl4AI Enhancer?
 
 ## Quickstart (Docker)
-- Copy `.env.example` to `.env`
+- Copy `env.example` to `.env`
 - edit `.env` and adjust values (set IMAGE_OWNER/IMAGE_NAME/IMAGE_TAG if pulling from your GHCR).
+- (Optional, roadmap) Multi-upstream config: copy `upstreams.example.yaml` to `upstreams.yaml`, edit endpoints (name, group, url, auth_header, weight, optional timeout_seconds), and set `UPSTREAMS_FILE=./upstreams.yaml` in `.env` (unset `UPSTREAM_BASE_URL` when you do). Current release still uses a single `UPSTREAM_BASE_URL`; the spray/balancer will consume this file when implemented.
 - Pull and run (default): `docker compose up -d` — pulls `ghcr.io/${IMAGE_OWNER}/${IMAGE_NAME}:${IMAGE_TAG}`.
 - Local build instead: `docker compose -f docker-compose.yml -f docker-compose.build.yml up --build`.
 - API: http://localhost:11234/docs
@@ -66,18 +67,22 @@ By default log level is set to INFO. You can use the logging levels:
 - WARNING
 - INFO (default)
 - DEBUG. 
-- TRACE (project custom level TRACE (python value=5) is also available; per-file CSS fetch details are logged at TRACE. Summary lines (e.g., “Files fetching summary…”) are INFO. Set `LOG_LEVEL=TRACE` to see per-file fetch URLs/paths; use `LOG_LEVEL=INFO` to see only summaries.
+- TRACE (project custom level TRACE (python value=5) is also available; per-file CSS fetch details are logged at TRACE. Summary lines (e.g., “Files fetching summary…”) are INFO. 
+
+Set `LOG_LEVEL=TRACE` to see per-file fetch URLs/paths
+use `LOG_LEVEL=INFO` to see only summaries.
 
 
 ## Environment variables
 - APP_NAME: display name (default "Crawl4AI Enhancer")
 - APP_ID: identifier slug (default "crawl4ai-enhancer")
-- VERSION: API version string (default 0.1.0)
 - DATA_DIR: in-container path for persisted files (default /data)
 - DB_URL: SQLAlchemy URL (default sqlite:////data/app.db)
 - UPSTREAM_BASE_URL: Crawl4AI server base URL to proxy (default http://localhost:11235)
 - UPSTREAM_AUTH_HEADER: Optional Authorization header value for upstream calls (default empty)
-- UPSTREAM_TIMEOUT_SECONDS: Upstream HTTP timeout for enhancer→Crawl4AI calls (default 300 seconds)
+- UPSTREAM_DEFAULT_TIMEOUT_SECONDS: Upstream HTTP timeout for enhancer→Crawl4AI calls (default 300 seconds)
+- UPSTREAMS_FILE: optional path to a YAML/JSON file listing multiple upstreams; when set, UPSTREAM_BASE_URL must be unset. If set and the file is missing/invalid, startup fails. Fields per entry: `name` (unique), `group` (region/cluster), `url`, `auth_header` (required), `weight` (int, default 1), `timeout_seconds` (optional override), `is_default` (mark one or more defaults used when the client does not request a specific upstream/group). Invalid upstream names/groups from clients now return errors; when none are provided the registry picks a default (most reliable marked default when multiple exist).
+- Version source: the app version is taken from `pyproject.toml`; no env override is needed for releases (you can still set `VERSION` if you need a stamped dev build).
 
 ## Enhancer request options
 When calling `/crawl`, you can include an optional `crawl4ai_enhancer_options` block to control proxy-side enrichment:
@@ -89,6 +94,8 @@ When calling `/crawl`, you can include an optional `crawl4ai_enhancer_options` b
     "capture_network_requests": true,
     "crawl4ai_enhancer_options": {
       "timeout_seconds": 300,            // optional per-request override of enhancer→upstream HTTP timeout
+      "upstream_name": "eu1",            // optional: route to a specific upstream by name (cannot combine with upstream_group)
+      "upstream_group": "eu",            // optional: route to a group; registry picks a healthy member by weight
       "log_snippet": false,              // optionally include a short content snippet in the response for visibility
       "client_uuid": "abc123",           // optional client correlation; generated if omitted
       "media_extraction": {
@@ -117,6 +124,7 @@ curl -X POST http://localhost:11234/crawl \
     "capture_network_requests": true,
     "crawl4ai_enhancer_options": {
       "timeout_seconds": 300,
+      "upstream_group": "eu",
       "log_snippet": false,
       "client_uuid": "abc123",
       "media_extraction": {
@@ -135,14 +143,20 @@ curl -X POST http://localhost:11234/crawl \
   }'
 ```
 
+Upstream selection rules:
+- Provide either `upstream_name` or `upstream_group` (not both); unknown names/groups return `400`.
+- If neither is set, the registry picks a default (nodes marked `is_default`; ties broken by reliability/weight).
+- If a requested group has no healthy nodes, the request returns `503`.
+
 ## Layout
 - app/: application code (api routes, config, db helpers)
 - data/: persisted volume mounted at /data in the container
 - tests/: basic health check
 - Dockerfile, docker-compose.yml (pull from GHCR), docker-compose.build.yml (local build override): containerization assets
 - requirements*.txt: dependencies
-- .env.example: dependencies and config defaults
+- env.example: dependencies and config defaults (includes UPSTREAMS_FILE pointing to upstreams.example.yaml by default)
 - scripts/build-push-ghcr.sh: helper to build/push the image to GHCR
+- upstreams.example.yaml: template for configuring multiple Crawl4AI upstreams (set UPSTREAMS_FILE to your copy)
 
 ## Notes
 - SQLite lives at /data/app.db by default. The data directory is a Docker volume so the DB survives rebuilds.

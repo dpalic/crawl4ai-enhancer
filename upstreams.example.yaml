@@ -1,0 +1,41 @@
+# Example upstream pool for Crawl4AI Enhancer (YAML supports comments)
+# Copy to upstreams.yaml and adjust. Point to it with UPSTREAMS_FILE=/app/upstreams.yaml.
+#
+# Fields:
+# - name: unique identifier for the node (required)
+# - group: logical group/region for routing (required, e.g., eu, us, ap)
+# - url: base URL to the Crawl4AI server (required)
+# - auth_header: Authorization header to send to this upstream (required)
+# - weight: optional integer weight for balancing within a group (default 1). Larger weight means
+#   the endpoint is selected more often relative to lower-weight peers (e.g., weight 10 is ~10x weight 1).
+# - timeout_seconds: optional override for this upstream (falls back to global UPSTREAM_TIMEOUT_SECONDS)
+# - is_default: optional flag to mark this node as the default when the client does not
+#   request a specific upstream/group. If multiple defaults exist, the registry picks the most
+#   reliable one (based on success/failure streaks and weight).
+#
+# Notes:
+# - This is just configuration; the multi-upstream balancer/sprayer is not implemented yet.
+# - When implemented, the enhancer will load this file if UPSTREAMS_FILE points to it
+#   and fall back to UPSTREAM_BASE_URL when absent.
+
+- name: eu1
+  group: eu
+  url: http://eu1.crawl4ai.internal:11235
+  auth_header: "Authorization: Bearer your_CRAWL4AI_API_TOKEN_EU1"
+  weight: 2
+  is_default: true
+- name: eu2
+  group: eu
+  url: http://eu2.crawl4ai.internal:11235
+  auth_header: "Authorization: Bearer your_CRAWL4AI_API_TOKEN_EU2"
+  weight: 1
+- name: us1
+  group: us
+  url: http://us1.crawl4ai.internal:11235
+  auth_header: "Authorization: Bearer your_CRAWL4AI_API_TOKEN_US1"
+  weight: 1
+- name: ap1
+  group: ap
+  url: http://ap1.crawl4ai.internal:11235
+  auth_header: "Authorization: Bearer your_CRAWL4AI_API_TOKEN_AP1"
+  weight: 1
